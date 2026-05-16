@@ -1,0 +1,24 @@
+---
+title: "{{ name }}"
+aliases: [{{ aliases | join(", ") }}]
+tags: [vantage/concept{% for t in tags %}, {{ t }}{% endfor %}]
+type: concept
+---
+
+# {{ name }}
+
+{{ definition }}
+
+## Threat Relevance
+{{ threat_relevance }}
+
+## Concept Map
+**Parents:** {% for p in parent_concepts %}[[{{ p }}]] {% endfor %}
+**Children:** {% for c in child_concepts %}[[{{ c }}]] {% endfor %}
+
+## Grounding Papers
+{% for sp in source_papers %}[[{{ sp }}]] {% endfor %}
+
+## Open Questions
+{% for oq in open_questions %}- {{ oq }}
+{% endfor %}

@@ -1,0 +1,25 @@
+---
+title: "{{ name }}"
+threat_id: "{{ id }}"
+layer: "{{ layer }}"
+tags: [vantage/threat, vantage/{{ layer | lower | replace(' ', '-') }}]
+type: threat
+---
+
+# {{ name }}
+
+**Layer:** {{ layer }}
+
+{{ description }}
+
+## Examples
+{% for ex in examples %}- {{ ex }}
+{% endfor %}
+## Mitigations
+{% for m in mitigations %}- {{ m }}
+{% endfor %}
+## Child Threats
+{% for c in child_ids %}[[{{ c }}]] {% endfor %}
+
+## Referenced Papers
+{% for pr in paper_references %}[[{{ pr }}]] {% endfor %}
