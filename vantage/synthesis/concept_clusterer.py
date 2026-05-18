@@ -34,7 +34,19 @@ async def cluster_concepts(papers: list[Paper], k: int = 15) -> list[ConceptNode
     if cfg.output.emit_synthesis_log:
         (_SYNTH_DIR / "concept_synthesis_raw.json").write_text(raw_text)
 
-    parsed = json.loads(raw_text)
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError:
+        # Truncated response: salvage complete objects before the cut-off
+        last_close = raw_text.rfind("}")
+        if last_close == -1:
+            raise
+        salvaged = raw_text[: last_close + 1]
+        # Strip leading "[" if present, then wrap as array
+        inner = salvaged.lstrip().lstrip("[").rstrip().rstrip(",")
+        parsed = json.loads(f"[{inner}]")
+        logger.warning("LLM response was truncated; recovered %d concept objects", len(parsed))
+
     concepts: list[ConceptNode] = []
     for item in parsed:
         try:

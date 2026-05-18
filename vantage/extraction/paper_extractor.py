@@ -71,8 +71,17 @@ async def extract_paper(meta: dict) -> Paper | None:
     return None
 
 
-async def extract_all(paper_metas: list[dict]) -> list[Paper]:
+async def extract_all(
+    paper_metas: list[dict],
+    on_done=None,
+) -> list[Paper]:
     """Parallel extraction of all papers respecting the semaphore in router.py."""
-    tasks = [extract_paper(m) for m in paper_metas]
+    async def _wrap(m: dict) -> Paper | None:
+        result = await extract_paper(m)
+        if on_done is not None:
+            on_done(result)
+        return result
+
+    tasks = [_wrap(m) for m in paper_metas]
     results = await asyncio.gather(*tasks, return_exceptions=False)
     return [r for r in results if r is not None]

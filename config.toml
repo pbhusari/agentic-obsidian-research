@@ -19,7 +19,7 @@ fast_model = "cerebras/gemma2-9b-it"
 synthesis_model = "cerebras/deepseek-r1-distill-llama-70b"
 temperature = 0.2
 max_tokens_extraction = 1024
-max_tokens_synthesis = 2048
+max_tokens_synthesis = 16000
 max_concurrent = 10
 
 [obsidian]

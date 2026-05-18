@@ -2,24 +2,78 @@
 title: "{{ name }}"
 threat_id: "{{ id }}"
 layer: "{{ layer }}"
-tags: [vantage/threat, vantage/{{ layer | lower | replace(' ', '-') }}]
+severity: "{{ severity }}"
+likelihood: "{{ likelihood }}"
+owasp_categories: {{ owasp_categories | tojson }}
+tags: [vantage/threat, vantage/{{ layer | lower | replace(' ', '-') }}{% if severity %}, vantage/{{ severity | lower }}{% endif %}{% for cat in owasp_categories %}, owasp/{{ cat | lower }}{% endfor %}]
 type: threat
 ---
 
 # {{ name }}
 
-**Layer:** {{ layer }}
+> [!warning] **{{ severity }} severity** · {{ likelihood }} likelihood · Layer: {{ layer }}
+> {{ impact_summary }}
+
+**OWASP Agentic AI:** {% for cat in owasp_categories %}[[OWASP {{ cat }}]] {% endfor %}
+
+**Threat Actor:** {{ threat_actor }}
+
+---
+
+## Description
 
 {{ description }}
 
-## Examples
+---
+
+## Attack Prerequisites
+{% for p in attack_prerequisites %}- {{ p }}
+{% endfor %}
+
+## Affected Components
+{% for c in affected_components %}- `{{ c }}`
+{% endfor %}
+
+---
+
+## Real-World Scenarios
+{% for s in real_world_scenarios %}
+### Scenario {{ loop.index }}
+{{ s }}
+{% endfor %}
+
+## Concrete Examples
 {% for ex in examples %}- {{ ex }}
 {% endfor %}
+
+---
+
+## Detection Signals
+{% for d in detection_signals %}- {{ d }}
+{% endfor %}
+
+---
+
 ## Mitigations
 {% for m in mitigations %}- {{ m }}
 {% endfor %}
-## Child Threats
-{% for c in child_ids %}[[{{ c }}]] {% endfor %}
+
+---
+
+## Relationships
+
+**Parent nodes:** {% for p in parent_ids %}[[{{ p }}]] {% endfor %}
+**Child nodes:** {% for c in child_ids %}[[{{ c }}]] {% endfor %}
+**Related concepts:** {% for r in related_concept_ids %}[[{{ r }}]] {% endfor %}
+
+---
 
 ## Referenced Papers
-{% for pr in paper_references %}[[{{ pr }}]] {% endfor %}
+{% for pr in paper_references %}- [[{{ pr }}]]
+{% endfor %}
+
+{% if references %}
+## External References
+{% for r in references %}- {{ r }}
+{% endfor %}
+{% endif %}

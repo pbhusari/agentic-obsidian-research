@@ -7,12 +7,26 @@ updated: {{ run_date }}
 
 # VANTAGE — Agentic Security Research
 
-> [!info] Last run: {{ run_date }} | Papers: {{ paper_count }} | Concepts: {{ concept_count }}
+> [!info] Last run: {{ run_date }} | Papers: {{ paper_count }} | Concepts: {{ concept_count }} | Threats: {{ threat_count }}
 
-## 🗺️ Threat Taxonomy
-[[Indirect Prompt Injection]] · [[Tool-Call Hijacking]] · [[Memory Poisoning]] · [[Agent Impersonation]] · [[Orchestrator Compromise]]
+---
+
+## 🔴 Threat Severity Overview
+
+| Critical | High | Medium | Low |
+|----------|------|--------|-----|
+| {{ sev_critical }} | {{ sev_high }} | {{ sev_medium }} | {{ sev_low }} |
+
+---
+
+## 🗺️ OWASP Agentic AI Top 10 — Threat Index
+
+{{ owasp_taxonomy_index }}
+
+---
 
 ## 📄 Recent Papers ({{ paper_count }})
+
 ```dataview
 TABLE published, citation_count, one_liner
 FROM "papers"
@@ -20,23 +34,35 @@ SORT published DESC
 LIMIT 25
 ```
 
+---
+
 ## 🔵 Concept Nodes ({{ concept_count }})
+
 ```dataview
 TABLE length(file.inlinks) as "Paper Links"
 FROM "concepts"
 SORT length(file.inlinks) DESC
 ```
 
+---
+
 ## 🔴 Critical Threats
+
 ```dataview
-TABLE threat_primitives
-FROM "papers"
-WHERE contains(tags, "vantage/critical")
-SORT published DESC
+TABLE owasp_categories, severity, impact_summary
+FROM "threats"
+WHERE severity = "Critical"
+SORT file.name ASC
 ```
 
+---
+
 ## 🟡 Open Problems
+
 {{ open_problems_aggregated }}
 
+---
+
 ## 📊 Coverage Map
+
 {{ concept_cluster_summary }}

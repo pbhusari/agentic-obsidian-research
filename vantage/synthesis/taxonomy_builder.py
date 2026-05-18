@@ -16,9 +16,17 @@ _SYNTH_DIR = Path(cfg.obsidian.vault_path) / "synthesis"
 
 async def build_taxonomy(papers: list[Paper]) -> list[ThreatTaxonomyNode]:
     """Build a threat taxonomy DAG from extracted paper primitives."""
-    papers_json = json.dumps(
-        [p.model_dump(mode="json") for p in papers], indent=2, default=str
-    )
+    slim_papers = [
+        {
+            "arxiv_id": p.arxiv_id,
+            "title": p.title,
+            "threat_primitives": [t.model_dump(mode="json") for t in p.threat_primitives],
+            "attack_surfaces": p.attack_surfaces,
+            "mitigations": p.mitigations,
+        }
+        for p in papers
+    ]
+    papers_json = json.dumps(slim_papers, indent=2, default=str)
 
     prompt = TAXONOMY_USER.format(papers_json=papers_json)
     raw_text = await complete(prompt, role="synthesis", system=TAXONOMY_SYSTEM)
@@ -31,7 +39,16 @@ async def build_taxonomy(papers: list[Paper]) -> list[ThreatTaxonomyNode]:
     if cfg.output.emit_synthesis_log:
         (_SYNTH_DIR / "taxonomy_raw.json").write_text(raw_text)
 
-    parsed = json.loads(raw_text)
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError:
+        last_close = raw_text.rfind("}")
+        if last_close == -1:
+            raise
+        inner = raw_text[: last_close + 1].lstrip().lstrip("[").rstrip().rstrip(",")
+        parsed = json.loads(f"[{inner}]")
+        logger.warning("LLM response was truncated; recovered %d taxonomy nodes", len(parsed))
+
     nodes: list[ThreatTaxonomyNode] = []
     for item in parsed:
         try:

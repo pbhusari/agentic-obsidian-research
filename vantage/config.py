@@ -7,9 +7,9 @@ import toml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-load_dotenv()
-
 _ROOT = Path(__file__).parent.parent
+
+load_dotenv(_ROOT / ".env")
 
 
 class PipelineConfig(BaseModel):
@@ -26,7 +26,7 @@ class LLMConfig(BaseModel):
     synthesis_model: str = "cerebras/deepseek-r1-distill-llama-70b"
     temperature: float = 0.2
     max_tokens_extraction: int = 1024
-    max_tokens_synthesis: int = 2048
+    max_tokens_synthesis: int = 16000
     max_concurrent: int = 10
 
 

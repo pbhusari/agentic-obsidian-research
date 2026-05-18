@@ -2,6 +2,16 @@
 
 Agentic Security Research Pipeline for Obsidian. Pulls the top N papers from the past M months across agentic security venues, synthesizes them via a fast LLM, and emits a fully-linked Obsidian vault.
 
+## Pipeline
+
+Each `vantage run` executes these steps in order:
+
+1. **Fetch** — queries arXiv for the top N papers matching configured venues and extra queries, then enriches each result with citation counts via Semantic Scholar
+2. **Extract** — runs each paper through the fast LLM to pull out threat primitives, attack surfaces, mitigations, and key concepts; results are written to `vault/papers/`
+3. **Concept clustering** — passes the full paper corpus to the synthesis LLM and collapses recurring ideas into up to 15 cross-paper concept nodes; written to `vault/concepts/`
+4. **Threat taxonomy** — builds a DAG of threat nodes from the extracted primitives across all papers, classifying attack classes and linking mitigations; written to `vault/threats/`
+5. **Dashboard** — generates `vault/_DASHBOARD.md`, a Dataview-powered Map of Content linking everything together
+
 ## Quickstart
 
 ```bash
@@ -22,11 +32,14 @@ vantage sync ~/Documents/Obsidian/VANTAGE
 ## Commands
 
 ```bash
-vantage run --n 25 --months 3                          # full pipeline
-vantage run --synthesis-only                           # re-synthesize without re-extracting
-vantage run --fast-model ollama/gemma3:27b             # override model for this run
-vantage run --extra-query "MCP server exploit 2025"    # add a one-off query
-vantage sync --vault ~/Documents/Obsidian/VANTAGE     # copy vault to Obsidian
+vantage run --n 25 --months 3                          # full pipeline (fetch → extract → concepts → threats → dashboard)
+vantage run --synthesis-only                           # skip fetch/extract, re-run concept clustering and threat taxonomy only
+vantage run --fast-model ollama/gemma3:27b             # override fast model (used for per-paper extraction)
+vantage run --synthesis-model ollama/deepseek-r1:32b   # override synthesis model (used for concept clustering and threat taxonomy)
+vantage run --extra-query "MCP server exploit 2025"    # add a one-off arXiv query on top of configured venues
+vantage sync ~/Documents/Obsidian/VANTAGE              # incrementally copy vault to Obsidian, skipping newer destination files
+vantage sync ~/Documents/Obsidian/VANTAGE --force      # overwrite even newer destination files
+vantage sync ~/Documents/Obsidian/VANTAGE --dry-run    # preview what would be copied
 vantage config                                         # show current config
 vantage models                                         # list model aliases
 ```

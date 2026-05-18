@@ -7,7 +7,16 @@ from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from rich.table import Table
 
 from vantage.config import cfg
@@ -53,39 +62,67 @@ async def _run_pipeline(n: int, months: int, synthesis_only: bool) -> None:
 
     papers = []
 
+    _spinner_cols = [
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+    ]
+    _bar_cols = [
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(bar_width=30),
+        MofNCompleteColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        TimeElapsedColumn(),
+    ]
+
     if not synthesis_only:
-        with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
-            t1 = progress.add_task("Fetching papers from arXiv...", total=None)
+        with Progress(*_spinner_cols, console=console) as progress:
+            t_fetch = progress.add_task("[cyan]Fetching papers from arXiv...[/cyan]", total=None)
             paper_metas = await fetch_papers(n, months)
-            progress.update(t1, description=f"Fetched {len(paper_metas)} papers. Enriching citations...")
+            progress.update(t_fetch, description=f"[cyan]Enriching {len(paper_metas)} papers with citations...[/cyan]")
             paper_metas = await enrich_with_citations(paper_metas)
-            progress.update(t1, description=f"Extracting intelligence from {len(paper_metas)} papers...")
-            papers = await extract_all(paper_metas)
-            progress.update(t1, description=f"Writing {len(papers)} paper nodes...", completed=1, total=1)
+            progress.update(t_fetch, description=f"[green]Fetched & enriched {len(paper_metas)} papers[/green]", completed=1, total=1)
+
+        with Progress(*_bar_cols, console=console) as progress:
+            t_extract = progress.add_task(
+                "[cyan]Extracting intelligence...[/cyan]",
+                total=len(paper_metas),
+            )
+
+            def _on_paper_done(paper):
+                label = paper.title[:48] + "..." if paper and len(paper.title) > 48 else (paper.title if paper else "skipped")
+                progress.update(
+                    t_extract,
+                    advance=1,
+                    description=f"[cyan]Extracting:[/cyan] [dim]{label}[/dim]",
+                )
+
+            papers = await extract_all(paper_metas, on_done=_on_paper_done)
+            progress.update(t_extract, description=f"[green]Extracted {len(papers)}/{len(paper_metas)} papers[/green]")
 
         for p in papers:
             writer.write_paper(p)
     else:
-        # Load existing papers from vault
-        import json
-        papers_dir = Path(vault_path) / "papers"
-        console.print("[yellow]synthesis-only: loading existing papers from vault...[/yellow]")
-        # We can't reload full Paper objects from markdown easily, so we skip re-loading
-        # and just re-synthesize with an empty list as a graceful degradation
+        console.print("[yellow]synthesis-only: skipping paper extraction[/yellow]")
         console.print("[yellow]Warning: synthesis-only without cached JSON is limited.[/yellow]")
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
-        t2 = progress.add_task("Synthesizing concept nodes...", total=None)
+    with Progress(*_spinner_cols, console=console) as progress:
+        t_concepts = progress.add_task("[cyan]Synthesizing concept clusters...[/cyan]", total=None)
         concepts = await cluster_concepts(papers)
-        progress.update(t2, description="Building threat taxonomy...")
+        progress.update(t_concepts, description=f"[green]Synthesized {len(concepts)} concept clusters[/green]", completed=1, total=1)
+
+    with Progress(*_spinner_cols, console=console) as progress:
+        t_tax = progress.add_task("[cyan]Building threat taxonomy...[/cyan]", total=None)
         threats = await build_taxonomy(papers)
-        progress.update(t2, description="Writing concept and threat nodes...", completed=1, total=1)
+        progress.update(t_tax, description=f"[green]Built {len(threats)} threat nodes[/green]", completed=1, total=1)
 
     for c in concepts:
         writer.write_concept(c)
     for t in threats:
         writer.write_threat(t)
-    writer.write_dashboard(papers, concepts)
+    writer.write_dashboard(papers, concepts, threats)
 
     table = Table(title="VANTAGE Run Complete")
     table.add_column("Category", style="cyan")
@@ -100,24 +137,45 @@ async def _run_pipeline(n: int, months: int, synthesis_only: bool) -> None:
 @app.command()
 def sync(
     vault: str = typer.Argument(..., help="Target Obsidian vault path"),
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite destination files even if they are newer"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be copied without writing anything"),
 ) -> None:
-    """Copy the generated vault to a target Obsidian directory."""
+    """Incrementally sync the generated vault to an on-device Obsidian vault.
+
+    Files that already exist in the destination and are newer than the source
+    are skipped to protect manual edits. Use --force to overwrite unconditionally.
+    """
     src = Path(cfg.obsidian.vault_path)
     dst = Path(vault)
     if not src.exists():
         console.print(f"[red]Source vault not found: {src}[/red]")
         raise typer.Exit(1)
 
-    dst.mkdir(parents=True, exist_ok=True)
+    copied = skipped = 0
     for item in src.rglob("*"):
         rel = item.relative_to(src)
         target = dst / rel
+
         if item.is_dir():
-            target.mkdir(parents=True, exist_ok=True)
+            if not dry_run:
+                target.mkdir(parents=True, exist_ok=True)
+            continue
+
+        if not dry_run:
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+        if not force and target.exists() and target.stat().st_mtime > item.stat().st_mtime:
+            skipped += 1
+            continue
+
+        if dry_run:
+            console.print(f"  [cyan]would copy[/cyan] {rel}")
         else:
             shutil.copy2(item, target)
+        copied += 1
 
-    console.print(f"[green]Vault synced to {dst}[/green]")
+    prefix = "[dim](dry run)[/dim] " if dry_run else ""
+    console.print(f"{prefix}[green]Synced {copied} file(s)[/green], [yellow]skipped {skipped} newer file(s)[/yellow] → {dst}")
 
 
 @app.command("config")

@@ -1,0 +1,7 @@
+.env
+vault/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+dist/

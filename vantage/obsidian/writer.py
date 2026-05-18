@@ -57,9 +57,14 @@ class VaultWriter:
         dest.write_text(content, encoding="utf-8")
         return dest
 
-    def write_dashboard(self, papers: list[Paper], concepts: list[ConceptNode]) -> Path:
+    def write_dashboard(
+        self,
+        papers: list[Paper],
+        concepts: list[ConceptNode],
+        threats: list[ThreatTaxonomyNode] | None = None,
+    ) -> Path:
         dest = self.vault / "_DASHBOARD.md"
-        content = generate_dashboard(papers, concepts)
+        content = generate_dashboard(papers, concepts, threats)
         dest.write_text(content, encoding="utf-8")
         return dest
 
@@ -72,5 +77,5 @@ class VaultWriter:
         paper_count = sum(1 for p in papers if self.write_paper(p))
         concept_count = sum(1 for c in concepts if self.write_concept(c))
         threat_count = sum(1 for t in threats if self.write_threat(t))
-        self.write_dashboard(papers, concepts)
+        self.write_dashboard(papers, concepts, threats)
         return {"papers": paper_count, "concepts": concept_count, "threats": threat_count}
